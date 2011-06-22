@@ -41,6 +41,9 @@ void blksync_sha1(void *hash, const void *message, size_t length) {
 }
 #elif USE_GCRYPT
 #include <gcrypt.h>
+
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
+
 void blksync_sha1(void *hash, const void *message, size_t length) {
 	gcry_md_hash_buffer(GCRY_MD_SHA1, hash, message, length);
 }
@@ -213,6 +216,15 @@ int main(int argc, char **argv) {
 	pthread_t *workers;
 	pthread_attr_t pthread_custom_attr;
 	params *p;
+
+#ifdef USE_GCRYPT
+	if (!gcry_check_version(GCRYPT_VERSION)) {
+		fputs ("libgcrypt version mismatch\n", stderr);
+		exit(2);
+	}
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	gcry_control(GCRYCTL_INITIALIZATION_FINISHED);
+#endif
 
 	//blockdev_name = "/dev/sysvg/vm_win7-32";
 
