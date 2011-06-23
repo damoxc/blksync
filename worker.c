@@ -37,13 +37,17 @@ void *bs_hash_chunk(void *arg) {
     ssize_t msg_size;
     params *p = (params *)arg;
     Action action;
-    //unsigned char hash[p->hash_length];
+    unsigned char hash[p->hash_length];
 
     printf("Thread-%d starting life\n", p->id);
 
+    action = malloc(sizeof(struct bs_action_t));
+
     while (1) {
         // Don't sit in a while loop if we can't get message, die!
-        msg_size = mq_receive(p->r_queue, (char *)&action, MSG_SIZE, NULL);
+        msg_size = mq_receive(p->r_queue, (char *)action, MSG_SIZE, NULL);
+        //printf("receiver msg_size: %ld\n", msg_size);
+
         if (msg_size == -1 || action->type == END_THREAD) {
             if (msg_size == -1)
                 perror("Unable to read from read-queue");
@@ -51,23 +55,27 @@ void *bs_hash_chunk(void *arg) {
         }
 
         chunk = (Chunk)action->data;
-        printf("receiver chunk-%d: %p\n", chunk->number, chunk);
+        //printf("receiver chunk-%d: %p\n", chunk->number, chunk);
 
-        //assert(chunk != NULL);
-        //assert(chunk->data != NULL);
-        //assert(p != NULL);
+        assert(chunk != NULL);
+        assert(chunk->data != NULL);
+        assert(p != NULL);
 
-        //bs_sha1(hash, chunk->data, p->hash_length);
+        bs_sha1(hash, chunk->data, p->hash_length);
 
-        //printf("hash: %s\n", (char *)action.data);
-        //bs_print_hash((unsigned char *)chunk->hash, SHA1_LENGTH);
-        //printf("\n");
+        bs_print_hash((unsigned char *)chunk->hash, p->hash_length);
+        printf("\n");
+
+        bs_print_hash((unsigned char *)hash, p->hash_length);
+        printf("\n");
         //printf("new_hash: %s\n", chunk->hash);
 
         //if (memcmp(chunk->hash, new_hash, SHA1_LENGTH) != 0) {
             // TODO: trigger write back to backup file
         //}
     }
+
+    free(action);
 
     printf("Thread-%d ending life\n", p->id);
     return NULL;
