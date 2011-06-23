@@ -30,10 +30,10 @@ struct bs_chunk_t {
 /**
  * Create a new chunk structure
  */
-static Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
-                       int chunk_size, int hash_length);
+Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
+                   int chunk_size, int hash_length);
 
 /**
  * Destroy and free up a chunk structure
  */
-static void bs_destroy_chunk(Chunk chunk);
+void bs_destroy_chunk(Chunk chunk);

@@ -18,37 +18,30 @@
  *
  */
 
-#include "chunk.h"
+#include "action.h"
+
+typedef struct bs_action_t *Action;
+
+typedef enum {
+    HASH_CHUNK,
+    END_THREAD
+} bs_action_type;
+
+struct bs_action_t {
+    bs_action_type type;
+    void          *data;
+};
 
 /**
- * Create a new chunk structure
+ * Create a new thread message
  */
-Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
-                   int chunk_size, int hash_length) {
-	Chunk chunk = malloc(sizeof(struct bs_chunk_t));
+Action bs_new_action(bs_action_type type, void *data) {
+    Action action = malloc(sizeof(struct bs_action_t));
 
-    if (chunk != NULL) {
-        chunk->number = number;
-        chunk->data = malloc(chunk_size);
-        if (chunk->data != NULL) {
-            memcpy(chunk->data, data, chunk_size);
-        }
-
-        chunk->hash = malloc(hash_length);
-        if (chunk->hash != NULL) {
-            memcpy(chunk->hash, hash, hash_length);
-        }
+    if (action != NULL) {
+        action->type = type;
+        action->data = data;
     }
 
-    return chunk;
-}
-
-/**
- * Destroy and free up a chunk structure
- */
-void bs_destroy_chunk(Chunk chunk) {
-    memcpy(chunk->data, "\0", 1);
-    memcpy(chunk->hash, "\0", 1);
-    chunk->number = -1;
-    free(chunk);
+    return action;
 }
