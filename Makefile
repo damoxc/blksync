@@ -1,16 +1,23 @@
 CC=gcc
-CFLAGS=-Wall -Werror -O -g -fmudflapth
-LDFLAGS=-lrt -lgcrypt -lpthread -lmudflapth
+CFLAGS=-Wall -Werror -O -g
+LDFLAGS=-lrt -lgcrypt -lpthread
 TARGETS=blksync testAction testChunk
 CRYPTLIB=gcrypt
+MUDFLAP=no
 
 ifeq ($(CRYPTLIB),gcrypt)
 CFLAGS+= -DUSE_GCRYPT
 LDFLAGS+=-lgcrypt
 endif
+
 ifeq ($(CRYPTLIB),openssl)
 CFLAGS+= -DUSE_OPENSSL
 LDFLAGS+=-lssl
+endif
+
+ifeq ($(MUDFLAP),yes)
+CFLAGS+= -fmudflapth
+LDFLAGS+= -lmudflapth
 endif
 
 .PHONY: all clean
