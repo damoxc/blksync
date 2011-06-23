@@ -18,19 +18,8 @@
  *
  */
 
+#include <stdlib.h>
 #include "action.h"
-
-typedef struct bs_action_t *Action;
-
-typedef enum {
-    HASH_CHUNK,
-    END_THREAD
-} bs_action_type;
-
-struct bs_action_t {
-    bs_action_type type;
-    void          *data;
-};
 
 /**
  * Create a new thread message
