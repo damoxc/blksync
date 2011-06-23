@@ -4,17 +4,16 @@
 #include <stdlib.h>
 #include "chunk.h"
 
-void test_chunk();
+void test_chunk(void);
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     printf("Running test_chunk()\n");
     test_chunk();
 
     return 0;
 }
 
-void test_chunk() {
+void test_chunk(void) {
     unsigned char *buffer, *hash;
     Chunk chunk;
 
