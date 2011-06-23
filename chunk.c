@@ -25,7 +25,7 @@
  */
 Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
                    int chunk_size, int hash_length) {
-	Chunk chunk = malloc(sizeof(struct bs_chunk_t));
+    Chunk chunk = malloc(sizeof(struct bs_chunk_t));
 
     if (chunk != NULL) {
         chunk->number = number;
