@@ -36,4 +36,6 @@ void test_chunk(void) {
 
     assert(memcmp(chunk->data, "test", 4) == 0);
     assert(memcmp(chunk->hash, "thistesthashforatest", 20) == 0);
+
+    bs_destroy_chunk(chunk);
 }

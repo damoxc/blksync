@@ -29,22 +29,24 @@ void test_action_simple(void) {
     assert(action->type == HASH_CHUNK);
 
     free(buffer);
+    free(action);
 }
 
 void test_action_loop(void) {
     int i;
-    char *buffer;
+    char *buffer, *format = "thisisrandomteststringnumber%04d";
     Action action;
 
     buffer = malloc(32);
 
     for (i = 0; i < 10000; i++) {
-        snprintf(buffer, 32, "thisisrandomteststringnumber%04d", i);
+        snprintf(buffer, 32, format, i);
 
         action = bs_new_action(HASH_CHUNK, buffer);
 
         assert(memcmp(action->data, buffer, 32) == 0);
         assert(action->type == HASH_CHUNK);
+        free(action);
     }
 
     free(buffer);

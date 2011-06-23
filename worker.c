@@ -68,6 +68,8 @@ void *bs_hash_chunk(void *arg) {
 
         bs_print_hash((unsigned char *)hash, p->hash_length);
         printf("\n");
+
+        bs_destroy_chunk(chunk);
         //printf("new_hash: %s\n", chunk->hash);
 
         //if (memcmp(chunk->hash, new_hash, SHA1_LENGTH) != 0) {

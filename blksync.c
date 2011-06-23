@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
     pthread_t *workers;
     pthread_attr_t pthread_custom_attr;
     params *p;
+    Action action;
     Chunk chunk;
     mqd_t r_queue, w_queue;
     struct mq_attr qattrs;
@@ -105,11 +106,15 @@ int main(int argc, char **argv) {
 
     // Initialize the variables
     buffer = (unsigned char *)malloc(chunk_size);
+    assert(buffer != NULL);
 
     // Initialize the threads
     workers = (pthread_t *)malloc(NUM_THREADS * sizeof(workers));
+    assert(workers != NULL);
+
     pthread_attr_init(&pthread_custom_attr);
     p = (params *)malloc(sizeof(params) * NUM_THREADS);
+    assert(p != NULL);
 
     for (i = 0; i < NUM_THREADS; i++) {
         p[i].id = i;
@@ -139,20 +144,25 @@ int main(int argc, char **argv) {
 
         // Now we have a chunk in our buffer, stick it on the queue
         chunk = bs_new_chunk(chunk_count, buffer, hash, chunk_size, hash_length);
+        action = bs_new_action(HASH_CHUNK, chunk);
         printf("sender chunk-%d: %p\n", chunk_count, chunk);
-        if (mq_send(r_queue, (char *)bs_new_action(HASH_CHUNK, chunk), MSG_SIZE, 5) == -1)
+        if (mq_send(r_queue, (char *)action, MSG_SIZE, 5) == -1)
             perror("Unable to send to read queue");
+
+        free(action);
 
         chunk_count++;
 
-        if (chunk_count >= 4)
+        if (chunk_count >= 1)
             break;
     }
 
     // End the threads
     for (i = 0; i < NUM_THREADS; i++) {
-        if (mq_send(r_queue, (char *)bs_new_action(END_THREAD, hash), MSG_SIZE, 5) == -1)
+        action = bs_new_action(END_THREAD, hash);
+        if (mq_send(r_queue, (char *)action, MSG_SIZE, 5) == -1)
             perror("Unable to send to read queue");
+        free(action);
     }
 
     // Wait for the threads to exit
@@ -160,6 +170,12 @@ int main(int argc, char **argv) {
         pthread_join(workers[i], NULL);
     }
 
+    // Tidy up after ourselves
+    free(p);
+    free(buffer);
+    free(workers);
+
+    // Close the queues
     if (mq_close(r_queue) == -1)
         perror("Cannot close read-queue");
 
@@ -171,6 +187,11 @@ int main(int argc, char **argv) {
 
     if (mq_unlink("/bsync-wqueue") == -1)
         perror("Cannot unlink write-queue");
+
+    // Close the files
+    fclose(bd_fp);
+    fclose(bf_fp);
+    fclose(h_fp);
 
     return 0;
 };

@@ -54,5 +54,7 @@ void bs_destroy_chunk(Chunk chunk) {
     memset(chunk->data, 0, chunk->chunk_size);
     memset(chunk->hash, 0, chunk->hash_length);
     chunk->number = -1;
+    free(chunk->data);
+    free(chunk->hash);
     free(chunk);
 }
