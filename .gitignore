@@ -1,1 +1,4 @@
 blksync
+*.o
+testAction
+testChunk
