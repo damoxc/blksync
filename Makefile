@@ -1,10 +1,17 @@
-blksync:
-	gcc -lgcrypt -lpthread -lrt -Wall -Werror -O -g -o blksync blksync.c -DUSE_GCRYPT
+CC=gcc
+CFLAGS=-Wall -Werror -O -g -DUSE_GCRYPT
+LDFLAGS=-lssl -lrt -lgcrypt -lpthread
+TARGETS=blksync testAction testChunk
 
-testChunk:
-	gcc -Wall -Werror -O -g -o testChunk testChunk.c chunk.c
-	./testChunk
-	rm testChunk
+.PHONY: all clean
+
+all: $(TARGETS)
+
+blksync: action.o chunk.o
+
+testAction: action.o
+
+testChunk: chunk.o
 
 clean:
-	rm -f blksync
+	rm -f *.o $(TARGETS)
