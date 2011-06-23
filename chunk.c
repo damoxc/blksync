@@ -29,11 +29,13 @@ Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
 
     if (chunk != NULL) {
         chunk->number = number;
+        chunk->chunk_size;
         chunk->data = malloc(chunk_size);
         if (chunk->data != NULL) {
             memcpy(chunk->data, data, chunk_size);
         }
 
+        chunk->hash_length = hash_length;
         chunk->hash = malloc(hash_length);
         if (chunk->hash != NULL) {
             memcpy(chunk->hash, hash, hash_length);
@@ -47,8 +49,8 @@ Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
  * Destroy and free up a chunk structure
  */
 void bs_destroy_chunk(Chunk chunk) {
-    memcpy(chunk->data, "\0", 1);
-    memcpy(chunk->hash, "\0", 1);
+    memset(chunk->data, 0, chunk->chunk_size);
+    memset(chunk->hash, 0, chunk->hash_length);
     chunk->number = -1;
     free(chunk);
 }

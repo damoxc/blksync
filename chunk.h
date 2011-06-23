@@ -21,8 +21,9 @@
 typedef struct bs_chunk_t *Chunk;
 
 struct bs_chunk_t {
-	int            number;
-    int            has_hash;
+    int            number;
+    int            chunk_size;
+    int            hash_length;
     unsigned char *data;
     unsigned char *hash;
 };
