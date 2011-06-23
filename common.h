@@ -18,7 +18,10 @@
  *
  */
 
+#include <errno.h>
+#include <stdio.h>
 #include <mqueue.h>
+#include <pthread.h>
 
 #ifndef BS_COMMON_H
 #define BS_COMMON_H
@@ -42,15 +45,39 @@ typedef struct {
 
 #ifdef USE_OPENSSL
 #include <openssl/sha.h>
+static inline void bs_sha1(void *hash, const void *message, size_t length) {
+        SHA1(message, length, hash);
+}
 #elif USE_GCRYPT
 #include <gcrypt.h>
+static inline void bs_sha1(void *hash, const void *message, size_t length) {
+        gcry_md_hash_buffer(GCRY_MD_SHA1, hash, message, length);
+}
 #else
 #error No cryptographic library specififed.
 #endif
 
-void bs_sha1(void *hash, const void *message, size_t length);
+/**
+ * Print out a sha1 hash
+ */
+static inline void bs_print_hash(unsigned char *hash, int length) {
+	int i;
+    for (i = 0; i < length; i++) {
+        printf("%02x", hash[i]);
+    }
+}
 
-void bs_print_hash(unsigned char *hash, int length);
+/**
+ * Safely open a file for read/write if it does not exist, without wiping
+ * the contents of the file.
+ */
+static inline FILE *bs_open_rw(char *path) {
+	FILE *fp;
 
-FILE *bs_open_rw(char *path);
+    fp = fopen(path, "r+");
+    if (fp == NULL && errno == ENOENT) {
+        fp = fopen(path, "w+");
+    }
+    return fp;
+}
 #endif
