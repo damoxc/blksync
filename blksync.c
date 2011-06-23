@@ -57,7 +57,6 @@ int main(int argc, char **argv) {
     struct mq_attr qattrs;
 
 #ifdef USE_GCRYPT
-
     if (!gcry_check_version(GCRYPT_VERSION)) {
         fputs ("libgcrypt version mismatch\n", stderr);
         exit(2);
@@ -146,19 +145,32 @@ int main(int argc, char **argv) {
 
         chunk_count++;
 
-        break;
+        if (chunk_count >= 4)
+            break;
     }
 
     // End the threads
-    //for (i = 0; i < NUM_THREADS; i++) {
-    //    if (mq_send(r_queue, (char *)bs_new_action(END_THREAD, hash), MSG_SIZE, 5) == -1)
-    //        perror("Unable to send to read queue");
-    //}
+    for (i = 0; i < NUM_THREADS; i++) {
+        if (mq_send(r_queue, (char *)bs_new_action(END_THREAD, hash), MSG_SIZE, 5) == -1)
+            perror("Unable to send to read queue");
+    }
 
     // Wait for the threads to exit
     for (i = 0; i < NUM_THREADS; i++) {
         pthread_join(workers[i], NULL);
     }
+
+    if (mq_close(r_queue) == -1)
+        perror("Cannot close read-queue");
+
+    if (mq_close(w_queue) == -1)
+        perror("Cannot close write-queue");
+
+    if (mq_unlink("/bs-rq") == -1)
+        perror("Cannot unlink read-queue");
+
+    if (mq_unlink("/bsync-wqueue") == -1)
+        perror("Cannot unlink write-queue");
 
     return 0;
 };
