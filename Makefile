@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS=-Wall -Werror -O -g -fmudflap
-LDFLAGS=-lrt -lgcrypt -lpthread -lmudflap
+CFLAGS=-Wall -Werror -O -g -fmudflapth
+LDFLAGS=-lrt -lgcrypt -lpthread -lmudflapth
 TARGETS=blksync testAction testChunk
 CRYPTLIB=gcrypt
 
