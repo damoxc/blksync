@@ -6,7 +6,7 @@
 
 void test_chunk();
 
-int main(void)
+int main(int argc, char **argv)
 {
     printf("Running test_chunk()\n");
     test_chunk();
@@ -26,8 +26,8 @@ void test_chunk() {
 
     chunk = bs_new_chunk(1, buffer, hash, 4, 20);
 
-    assert(memcmp(chunk->data, buffer, 4));
-    assert(memcmp(chunk->hash, hash, 20));
+    assert(memcmp(chunk->data, buffer, 4) == 0);
+    assert(memcmp(chunk->hash, hash, 20) == 0);
     assert(chunk->number == 1);
     assert(chunk->chunk_size == 4);
     assert(chunk->hash_length == 20);
@@ -35,6 +35,6 @@ void test_chunk() {
     free(buffer);
     free(hash);
 
-    assert(memcmp(chunk->data, "test", 4));
-    assert(memcmp(chunk->hash, "thistesthashforatest", 20));
+    assert(memcmp(chunk->data, "test", 4) == 0);
+    assert(memcmp(chunk->hash, "thistesthashforatest", 20) == 0);
 }
