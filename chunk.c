@@ -31,7 +31,7 @@ Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
 
     if (chunk != NULL) {
         chunk->number = number;
-        chunk->chunk_size;
+        chunk->chunk_size = chunk_size;
         chunk->data = malloc(chunk_size);
         if (chunk->data != NULL) {
             memcpy(chunk->data, data, chunk_size);
