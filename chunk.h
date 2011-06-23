@@ -18,6 +18,9 @@
  *
  */
 
+#ifndef BS_CHUNK
+#define BS_CHUNK 1
+
 typedef struct bs_chunk_t *Chunk;
 
 struct bs_chunk_t {
@@ -38,3 +41,5 @@ Chunk bs_new_chunk(int number, unsigned char *data, unsigned char *hash,
  * Destroy and free up a chunk structure
  */
 void bs_destroy_chunk(Chunk chunk);
+
+#endif

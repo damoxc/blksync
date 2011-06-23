@@ -18,6 +18,9 @@
  *
  */
 
+#ifndef BS_ACTION
+#define BS_ACTION 1
+
 typedef struct bs_action_t *Action;
 
 typedef enum {
@@ -34,3 +37,4 @@ struct bs_action_t {
  * Create a new thread message
  */
 Action bs_new_action(bs_action_type type, void *data);
+#endif
