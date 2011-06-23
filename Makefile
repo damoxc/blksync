@@ -17,7 +17,7 @@ endif
 
 all: $(TARGETS)
 
-blksync: action.o chunk.o
+blksync: action.o chunk.o worker.o writer.o
 
 testAction: action.o
 

@@ -25,275 +25,174 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <mqueue.h>
+#include <sys/stat.h>
 
-#define TRUE            1
-#define FALSE           0
-#define KB              1024
-#define MB             (1024*KB)
-#define CHUNK_SIZE     (4*MB)
-#define NUM_THREADS     4
-#define SHA1_LENGTH     20
+#include "action.h"
+#include "chunk.h"
+#include "common.h"
+#include "worker.h"
 
 #ifdef USE_OPENSSL
 #include <openssl/sha.h>
-void blksync_sha1(void *hash, const void *message, size_t length) {
-	SHA1(message, length, hash);
+static inline void bs_sha1(void *hash, const void *message, size_t length) {
+    SHA1(message, length, hash);
 }
 #elif USE_GCRYPT
 #include <gcrypt.h>
 
 GCRY_THREAD_OPTION_PTHREAD_IMPL;
 
-void blksync_sha1(void *hash, const void *message, size_t length) {
-	gcry_md_hash_buffer(GCRY_MD_SHA1, hash, message, length);
+static inline void bs_sha1(void *hash, const void *message, size_t length) {
+    gcry_md_hash_buffer(GCRY_MD_SHA1, hash, message, length);
 }
 #else
 #error No cryptographic library specififed.
 #endif
 
-pthread_mutex_t queue_mutex;
+#define NUM_THREADS 1
 
-typedef struct chunk_t *Chunk;
-typedef struct queue_t *Queue;
+/**
+ * Safely open a file for read/write if it does not exist, without wiping
+ * the contents of the file.
+ */
+FILE *bs_open_rw(char *path) {
+    FILE *fp;
 
-struct queue_t {
-	Chunk head;
-	Chunk tail;
-};
-
-struct chunk_t {
-	unsigned char data[CHUNK_SIZE];
-	unsigned char hash[SHA1_LENGTH];
-	Chunk next;
-};
-
-typedef struct {
-	Queue queue;
-	int id;
-} params;
-
-static Chunk new_chunk(unsigned char *data, unsigned char *hash) {
-	Chunk chunk = malloc(sizeof(struct chunk_t));
-	if (chunk != NULL) {
-		memcpy(&chunk->data, data, CHUNK_SIZE);
-		memcpy(&chunk->hash, hash, SHA1_LENGTH);
-		chunk->next = NULL;
-	}
-	return chunk;
-};
-
-static void destroy_chunk(Chunk chunk) {
-	if (chunk != NULL) {
-		Chunk next = chunk->next;
-		memcpy(chunk->data, "\0", 1);
-		memcpy(chunk->hash, "\0", 1);
-		chunk->next = NULL;
-		free(chunk);
-		destroy_chunk(next);
-	}
-};
-
-Queue new_queue(void) {
-	Queue queue = malloc(sizeof(struct queue_t));
-	if (queue != NULL) {
-		queue->head = NULL;
-		queue->tail = NULL;
-	}
-	return queue;
-}
-
-void destroy_queue(Queue queue) {
-	if (queue != NULL) {
-		destroy_chunk(queue->head);
-		queue->head = NULL;
-		queue->tail = NULL;
-		free(queue);
-	}
-}
-
-int is_empty(Queue queue) {
-	assert(queue != NULL);
-	return (queue->head == NULL);
-}
-
-int enqueue(Queue queue, unsigned char *data, unsigned char *hash) {
-	assert(queue != NULL);
-
-	int success = FALSE;
-	Chunk chunk = new_chunk(data, hash);
-
-	if (chunk != NULL) {
-		if (queue->tail != NULL) {
-			assert(queue->tail->next == NULL);
-			queue->tail->next = chunk;
-		}
-
-		if (queue->head == NULL) {
-			queue->head = chunk;
-		}
-
-		queue->tail = chunk;
-		success = TRUE;
-	}
-
-	return success;
-}
-
-Chunk dequeue(Queue queue) {
-	assert(queue != NULL);
-	assert(!is_empty(queue));
-
-	Chunk chunk = queue->head;
-	queue->head = chunk->next;
-
-	if (queue->head == NULL) {
-		assert(queue->tail == chunk);
-		queue->tail = NULL;
-	}
-
-	return chunk;
-}
-
-FILE *blksync_open_rw(char *path) {
-	FILE *fp;
-
-	fp = fopen(path, "r+");
-	if (fp == NULL && errno == ENOENT) {
-		fp = fopen(path, "w+");
-	}
-	return fp;
+    fp = fopen(path, "r+");
+    if (fp == NULL && errno == ENOENT) {
+        fp = fopen(path, "w+");
+    }
+    return fp;
 }
 
 /**
- * Using blksync_sha1:
- *
- * ssize_t length = 4;
- * char *message  = "test";
- * unsigned char buffer[SHA1_LENGTH];
- *
- * blksync_sha1(buffer, message, length);
- *
- * printf("%s\n", buffer);
- *
- * for (i = 0; i < SHA1_LENGTH; i++) {
- *     printf("%02x", buffer[i]);
- * }
- * printf("\n");
+ * Print out a sha1 hash
  */
-
-void *hash_chunk(void *arg) {
-	params *p = (params *)arg;
-	unsigned char new_hash[SHA1_LENGTH];
-	Chunk chunk;
-	sleep(1);
-
-	while (1) {
-		pthread_mutex_lock(&queue_mutex);
-		if (is_empty(p->queue)) {
-			break;
-		}
-		chunk = dequeue(p->queue);
-		pthread_mutex_unlock(&queue_mutex);
-
-		blksync_sha1(new_hash, chunk->data, CHUNK_SIZE);
-
-		if (memcmp(chunk->hash, new_hash, SHA1_LENGTH) != 0) {
-			// TODO: trigger write back to backup file
-		}
-
-		pthread_mutex_lock(&queue_mutex);
-		pthread_mutex_unlock(&queue_mutex);
-	}
-	return NULL;
+static inline void bs_print_hash(unsigned char *hash, int length) {
+    int i;
+    for (i = 0; i < length; i++) {
+        printf("%02x", hash[i]);
+    }
 }
 
+/**
+ * Main thead
+ */
 int main(int argc, char **argv) {
-	FILE *bd_fp, *bf_fp, *h_fp;
-	int bytes_read, chunk_size = CHUNK_SIZE, i, first_run = 1;
-	unsigned char buffer[chunk_size], hash[SHA1_LENGTH];
-	char *blockdev_name = "/dev/sysvg/bd-test";
-	Queue queue = new_queue();
-	pthread_t *workers;
-	pthread_attr_t pthread_custom_attr;
-	params *p;
+    FILE *bd_fp, *bf_fp, *h_fp;
+    int bytes_read, hash_bytes_read, chunk_size = CHUNK_SIZE, i, chunk_count = 0, hash_length = SHA1_LENGTH;
+    unsigned char *buffer, hash[hash_length];
+    char *blockdev_name = "/dev/sysvg/bd-test";
+    pthread_t *workers;
+    pthread_attr_t pthread_custom_attr;
+    params *p;
+    Chunk chunk;
+    mqd_t r_queue, w_queue;
+    struct mq_attr qattrs;
 
 #ifdef USE_GCRYPT
-	if (!gcry_check_version(GCRYPT_VERSION)) {
-		fputs ("libgcrypt version mismatch\n", stderr);
-		exit(2);
-	}
-	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
-	gcry_control(GCRYCTL_INITIALIZATION_FINISHED);
+    if (!gcry_check_version(GCRYPT_VERSION)) {
+        fputs ("libgcrypt version mismatch\n", stderr);
+        exit(2);
+    }
+    gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+    gcry_control(GCRYCTL_INITIALIZATION_FINISHED);
 #endif
 
-	//blockdev_name = "/dev/sysvg/vm_win7-32";
+    qattrs.mq_msgsize = MSG_SIZE;
+    qattrs.mq_maxmsg = 10;
 
-	// Open the block device
-	bd_fp = fopen(blockdev_name, "r");
-	if (bd_fp == NULL) {
-		perror("Unable to open block device");
-		return 1;
-	}
+    r_queue = mq_open("/bs-rq", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR, &qattrs);
+    if (r_queue == -1) {
+        perror("Unable to open read queue");
+        return 1;
+    }
 
-	// Open the backup file
-	bf_fp = blksync_open_rw("/tmp/bd-test.img");
-	if (bf_fp == NULL) {
-		perror("Unable to open backup file");
-		return 1;
-	}
+    w_queue = mq_open("/bsync-wqueue", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR, &qattrs);
+    if (w_queue == -1) {
+        perror("Unable to open write queue");
+        return 1;
+    }
 
-	// Open the hash file
-	h_fp = blksync_open_rw("/tmp/.bd-test.img.sha1");
-	if (h_fp == NULL) {
-		perror("Unable to open hash file");
-		return 1;
-	}
+    //blockdev_name = "/dev/sysvg/vm_win7-32";
 
-	// Lock the queue mutex so the threads don't end prematurely
-	pthread_mutex_lock(&queue_mutex);
+    // Open the block device
+    bd_fp = fopen(blockdev_name, "r");
+    if (bd_fp == NULL) {
+        perror("Unable to open block device");
+        return 1;
+    }
 
-	// Initialize the threads
-	workers = (pthread_t *)malloc(NUM_THREADS * sizeof(workers));
-	pthread_attr_init(&pthread_custom_attr);
-	p = (params *)malloc(sizeof(params) * NUM_THREADS);
+    // Open the backup file
+    bf_fp = bs_open_rw("/tmp/bd-test.img");
+    if (bf_fp == NULL) {
+        perror("Unable to open backup file");
+        return 1;
+    }
 
-	for (i = 0; i < NUM_THREADS; i++) {
-		p[i].id = i;
-		p[i].queue = queue;
-		pthread_create(&workers[i], &pthread_custom_attr, hash_chunk, (void *)(p+i));
-	}
+    // Open the hash file
+    h_fp = bs_open_rw("/tmp/.bd-test.img.sha1");
+    if (h_fp == NULL) {
+        perror("Unable to open hash file");
+        return 1;
+    }
 
-	// Beginning reading from the block device
-	while (!feof(bd_fp)) {
-		bytes_read = 0;
+    // Initialize the variables
+    buffer = (unsigned char *)malloc(chunk_size);
 
-		// This loop handles partial reads
-		while (bytes_read < chunk_size && !feof(bd_fp)) {
-			bytes_read = fread(buffer + bytes_read, 1, chunk_size - bytes_read, bd_fp);
-		}
+    // Initialize the threads
+    workers = (pthread_t *)malloc(NUM_THREADS * sizeof(workers));
+    pthread_attr_init(&pthread_custom_attr);
+    p = (params *)malloc(sizeof(params) * NUM_THREADS);
 
-		// Read in from our comparison hash, if we have one
-		if (!feof(h_fp)) {
-			bytes_read = fread(h_fp, SHA1_LENGTH, 1, h_fp);
-		}
+    for (i = 0; i < NUM_THREADS; i++) {
+        p[i].id = i;
+        p[i].r_queue = r_queue;
+        p[i].w_queue = w_queue;
+        p[i].hash_length = SHA1_LENGTH;
+        p[i].chunk_size = chunk_size;
+        pthread_create(&workers[i], &pthread_custom_attr, bs_hash_chunk, (void *)(p+i));
+    }
 
-		// Open a lock on the queue
-		if (!first_run)
-			pthread_mutex_lock(&queue_mutex);
+    // Beginning reading from the block device
+    while (!feof(bd_fp)) {
+        bytes_read = 0;
 
-		// Now we have a chunk in our buffer, stick it on the queue
-		enqueue(queue, buffer, hash);
+        // This loop handles partial reads
+        while (bytes_read < chunk_size && !feof(bd_fp)) {
+            bytes_read += fread(buffer + bytes_read, 1, chunk_size - bytes_read, bd_fp);
+        }
 
-		// Relase our lock on the queue
-		pthread_mutex_unlock(&queue_mutex);
+        // Read in from our comparison hash, if we have one
+        if (!feof(h_fp)) {
+            hash_bytes_read = fread(hash, hash_length, 1, h_fp);
+            if (hash_bytes_read == 0) {
+                //hash = NULL;
+            }
+        }
 
-		first_run = 0;
-	}
+        // Now we have a chunk in our buffer, stick it on the queue
+        chunk = bs_new_chunk(chunk_count, buffer, hash, chunk_size, hash_length);
+        printf("sender chunk-%d: %p\n", chunk_count, chunk);
+        if (mq_send(r_queue, (char *)bs_new_action(HASH_CHUNK, chunk), MSG_SIZE, 5) == -1)
+            perror("Unable to send to read queue");
 
-	// Wait for the threads to exit
-	for (i = 0; i < NUM_THREADS; i++) {
-		pthread_join(workers[i], NULL);
-	}
+        chunk_count++;
 
-	return 0;
+        break;
+    }
+
+    // End the threads
+    //for (i = 0; i < NUM_THREADS; i++) {
+    //    if (mq_send(r_queue, (char *)bs_new_action(END_THREAD, hash), MSG_SIZE, 5) == -1)
+    //        perror("Unable to send to read queue");
+    //}
+
+    // Wait for the threads to exit
+    for (i = 0; i < NUM_THREADS; i++) {
+        pthread_join(workers[i], NULL);
+    }
+
+    return 0;
 };
