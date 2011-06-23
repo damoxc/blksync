@@ -43,7 +43,7 @@ void test_action_loop(void) {
 
         action = bs_new_action(HASH_CHUNK, buffer);
 
-        assert(memcmp(action->data, buffer, 20) == 0);
+        assert(memcmp(action->data, buffer, 32) == 0);
         assert(action->type == HASH_CHUNK);
     }
 
