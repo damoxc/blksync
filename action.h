@@ -18,8 +18,8 @@
  *
  */
 
-#ifndef BS_ACTION
-#define BS_ACTION 1
+#ifndef BS_ACTION_H
+#define BS_ACTION_H
 
 typedef struct bs_action_t *Action;
 

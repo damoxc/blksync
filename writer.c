@@ -18,6 +18,8 @@
  *
  */
 
+#include <stdlib.h>
+
 #include "writer.h"
 
 void *bs_write_backupfile(void *arg) {

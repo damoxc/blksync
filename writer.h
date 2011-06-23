@@ -18,4 +18,9 @@
  *
  */
 
+#ifndef BS_WRITER_H
+#define BS_WRITER_H
+
 void *bs_write_backupfile(void *arg);
+
+#endif

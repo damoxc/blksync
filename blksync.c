@@ -28,53 +28,18 @@
 #include <mqueue.h>
 #include <sys/stat.h>
 
+#ifdef USE_GCRYPT
+#include <gcrypt.h>
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
+#endif
+
 #include "action.h"
 #include "chunk.h"
 #include "common.h"
 #include "worker.h"
-
-#ifdef USE_OPENSSL
-#include <openssl/sha.h>
-static inline void bs_sha1(void *hash, const void *message, size_t length) {
-    SHA1(message, length, hash);
-}
-#elif USE_GCRYPT
-#include <gcrypt.h>
-
-GCRY_THREAD_OPTION_PTHREAD_IMPL;
-
-static inline void bs_sha1(void *hash, const void *message, size_t length) {
-    gcry_md_hash_buffer(GCRY_MD_SHA1, hash, message, length);
-}
-#else
-#error No cryptographic library specififed.
-#endif
+#include "writer.h"
 
 #define NUM_THREADS 1
-
-/**
- * Safely open a file for read/write if it does not exist, without wiping
- * the contents of the file.
- */
-FILE *bs_open_rw(char *path) {
-    FILE *fp;
-
-    fp = fopen(path, "r+");
-    if (fp == NULL && errno == ENOENT) {
-        fp = fopen(path, "w+");
-    }
-    return fp;
-}
-
-/**
- * Print out a sha1 hash
- */
-static inline void bs_print_hash(unsigned char *hash, int length) {
-    int i;
-    for (i = 0; i < length; i++) {
-        printf("%02x", hash[i]);
-    }
-}
 
 /**
  * Main thead
@@ -92,6 +57,7 @@ int main(int argc, char **argv) {
     struct mq_attr qattrs;
 
 #ifdef USE_GCRYPT
+
     if (!gcry_check_version(GCRYPT_VERSION)) {
         fputs ("libgcrypt version mismatch\n", stderr);
         exit(2);

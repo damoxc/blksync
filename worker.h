@@ -18,4 +18,9 @@
  *
  */
 
+#ifndef BS_WORKER_H
+#define BS_WORKER_H
+
 void *bs_hash_chunk(void *arg);
+
+#endif

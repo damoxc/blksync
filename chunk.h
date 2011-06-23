@@ -18,8 +18,8 @@
  *
  */
 
-#ifndef BS_CHUNK
-#define BS_CHUNK 1
+#ifndef BS_CHUNK_H
+#define BS_CHUNK_H
 
 typedef struct bs_chunk_t *Chunk;
 
